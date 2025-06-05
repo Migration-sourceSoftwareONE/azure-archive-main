@@ -3,7 +3,8 @@ param(
     [string]$GitHubToken,
     [string]$StorageAccountName,
     [string]$StorageAccountKey,
-    [string]$ContainerName = "security-backups"
+    [string]$ContainerName = "security-backups",
+    [int]$RetentionDays = 60
 )
 
 Import-Module Az.Accounts -Force
@@ -54,4 +55,21 @@ foreach ($repo in $repos) {
                              -Context $ctx `
                              -StandardBlobTier "Archive" `
                              -Force
+}
+
+# Implement retention policy - delete backups older than retention days
+Write-Host "`n==> Cleaning up old backups (older than $RetentionDays days)..."
+$cutoffDate = (Get-Date).AddDays(-$RetentionDays)
+$oldBackups = Get-AzStorageBlob -Container $ContainerName -Context $ctx | Where-Object {
+    $_.LastModified.DateTime -lt $cutoffDate
+}
+
+if ($oldBackups.Count -gt 0) {
+    foreach ($blob in $oldBackups) {
+        Write-Host "🗑️ Deleting old backup: $($blob.Name) (Last modified: $($blob.LastModified))"
+        Remove-AzStorageBlob -Blob $blob.Name -Container $ContainerName -Context $ctx -Force
+    }
+    Write-Host "✅ Deleted $($oldBackups.Count) old backups."
+} else {
+    Write-Host "✅ No old backups to delete."
 }

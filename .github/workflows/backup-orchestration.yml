@@ -1,0 +1,35 @@
+name: Full Repository Backup Process
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_terraform:
+        description: 'Skip Terraform deployment (use existing infrastructure)'
+        type: boolean
+        default: false
+      retention_days:
+        description: 'Backup retention period in days'
+        type: number
+        default: '60'
+        required: false
+  schedule:
+    - cron: "0 1 * * 5"  # 1:00 AM on Fridays (before the archive job)
+
+jobs:
+  terraform:
+    if: ${{ !inputs.skip_terraform }}
+    uses: ./.github/workflows/deploy-terraform.yml
+    secrets:
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+  
+  archive:
+    needs: [terraform]
+    if: ${{ always() && (needs.terraform.result == 'success' || inputs.skip_terraform == true) }}
+    uses: ./.github/workflows/archive-org-repos.yml
+    secrets:
+      ARCHIVE_APP_ID: ${{ secrets.ARCHIVE_APP_ID }}
+      ARCHIVE_APP_PRIVATE_KEY: ${{ secrets.ARCHIVE_APP_PRIVATE_KEY }}
+      AZURE_STORAGE_KEY: ${{ secrets.AZURE_STORAGE_KEY }}
