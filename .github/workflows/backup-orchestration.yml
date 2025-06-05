@@ -17,8 +17,8 @@ on:
       destroy:
         description: 'Set to "true" to destroy infrastructure'
         required: false
-        default: 'false'  # Change to string type
-        type: string      # Change to string type
+        default: 'false'
+        type: string
     secrets:
       ARM_CLIENT_ID:
         required: true
