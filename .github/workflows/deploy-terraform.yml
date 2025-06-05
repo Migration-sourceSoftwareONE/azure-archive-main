@@ -11,13 +11,13 @@ on:
         options:
           - 'false'
           - 'true'
-  workflow_call:  # Add this section to make the workflow reusable
+  workflow_call:  # Make the workflow reusable
     inputs:
       destroy:
         description: 'Set to "true" to destroy infrastructure'
         required: false
         default: 'false'
-        type: boolean
+        type: string  # Change this to string instead of boolean
     secrets:
       ARM_CLIENT_ID:
         required: true
@@ -26,6 +26,8 @@ on:
       ARM_TENANT_ID:
         required: true
       ARM_SUBSCRIPTION_ID:
+        required: true
+      GITHUB_TOKEN:
         required: true
 
 permissions:
@@ -53,15 +55,21 @@ jobs:
         with:
           terraform_version: 1.5.7
 
+      - name: Create Azure Credentials JSON
+        id: azure-credentials
+        run: |
+          echo '{
+            "clientId": "${{ secrets.ARM_CLIENT_ID }}",
+            "clientSecret": "${{ secrets.ARM_CLIENT_SECRET }}",
+            "subscriptionId": "${{ secrets.ARM_SUBSCRIPTION_ID }}",
+            "tenantId": "${{ secrets.ARM_TENANT_ID }}"
+          }' > azure-credentials.json
+          echo "::set-output name=path::azure-credentials.json"
+      
       - name: Azure Login
         uses: azure/login@v1
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}  # Use this format for client secret auth
-          # OR use this format instead:
-          # auth-type: 'service-principal'
-          # client-id: ${{ secrets.ARM_CLIENT_ID }}
-          # tenant-id: ${{ secrets.ARM_TENANT_ID }}
-          # subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          creds: $(cat azure-credentials.json)
 
       - name: Terraform Init
         id: init
@@ -85,7 +93,7 @@ jobs:
             -var="storage_account_name=ghbackupsa${{ github.run_id }}" \
             -var="container_name=repositories"
         working-directory: ./terraform
-        if: ${{ inputs.destroy != true }}
+        if: inputs.destroy != 'true'
 
       - name: Terraform Apply
         id: apply
@@ -98,7 +106,7 @@ jobs:
             -var="storage_account_name=ghbackupsa${{ github.run_id }}" \
             -var="container_name=repositories"
         working-directory: ./terraform
-        if: ${{ inputs.destroy != true }}
+        if: inputs.destroy != 'true'
 
       - name: Terraform Destroy
         id: destroy
@@ -111,7 +119,7 @@ jobs:
             -var="storage_account_name=ghbackupsa${{ github.run_id }}" \
             -var="container_name=repositories"
         working-directory: ./terraform
-        if: ${{ inputs.destroy == true }}
+        if: inputs.destroy == 'true'
 
       - name: Get Terraform outputs
         id: terraform-output
@@ -120,11 +128,11 @@ jobs:
           echo "container_name=$(terraform output -raw container_name)" >> $GITHUB_OUTPUT
           echo "storage_account_key=$(terraform output -raw storage_account_key)" >> $GITHUB_OUTPUT
         working-directory: ./terraform
-        if: ${{ inputs.destroy != true }}
+        if: inputs.destroy != 'true'
 
       # Set variables using GitHub CLI
       - name: Set GitHub Variables and Secrets
-        if: ${{ inputs.destroy != true }}
+        if: inputs.destroy != 'true'
         run: |
           # Install GitHub CLI if not already installed
           if ! command -v gh &> /dev/null; then
