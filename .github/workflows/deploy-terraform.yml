@@ -80,14 +80,14 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               name: 'AZURE_STORAGE_ACCOUNT',
-              value: storage_account
+              value: '${{ steps.terraform-output.outputs.storage_account_name }}'
             });
             
             await github.rest.actions.createOrUpdateRepoVariable({
               owner: context.repo.owner,
               repo: context.repo.repo,
               name: 'CONTAINER_NAME',
-              value: container_name
+              value: '${{ steps.terraform-output.outputs.storage_account_name }}'
             });
             
             // Update secret
