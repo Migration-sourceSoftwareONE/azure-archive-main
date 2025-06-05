@@ -17,8 +17,8 @@ on:
       destroy:
         description: 'Set to "true" to destroy infrastructure'
         required: false
-        default: false
-        type: boolean
+        default: 'false'  # Change to string type
+        type: string      # Change to string type
     secrets:
       ARM_CLIENT_ID:
         required: true
@@ -40,6 +40,8 @@ jobs:
       ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
       ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+    with:
+      destroy: 'false'  # Pass as string with quotes
   
   archive:
     needs: [terraform]
