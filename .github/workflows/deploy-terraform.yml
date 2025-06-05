@@ -120,10 +120,24 @@ jobs:
       - name: Get Terraform outputs
         id: terraform-output
         run: |
-          # Store Terraform outputs directly in GitHub outputs
-          echo "storage_account_name=$(terraform output -raw storage_account_name)" >> $GITHUB_OUTPUT
-          echo "container_name=$(terraform output -raw container_name)" >> $GITHUB_OUTPUT
-          echo "storage_account_key=$(terraform output -raw storage_account_primary_key)" >> $GITHUB_OUTPUT
+          # Use fixed values that we already know
+          # The storage account name is based on the github run id
+          STORAGE_ACCOUNT_NAME="ghbackupsa${{ github.run_id }}"
+          CONTAINER_NAME="repositories"
+          
+          # Get the storage account key (more complex, need to fetch it differently)
+          # Use Azure CLI to get the key directly
+          KEY=$(az storage account keys list --account-name "$STORAGE_ACCOUNT_NAME" --resource-group "rg-github-backup" --query '[0].value' -o tsv)
+          
+          # Set the outputs
+          echo "storage_account_name=${STORAGE_ACCOUNT_NAME}" >> $GITHUB_OUTPUT
+          echo "container_name=${CONTAINER_NAME}" >> $GITHUB_OUTPUT
+          echo "storage_account_key=${KEY}" >> $GITHUB_OUTPUT
+          
+          # Debug info (will be visible in logs but not affect the outputs)
+          echo "Storage account: ${STORAGE_ACCOUNT_NAME}"
+          echo "Container: ${CONTAINER_NAME}" 
+          echo "Key retrieved: $(if [ -n \"$KEY\" ]; then echo 'Yes'; else echo 'No'; fi)"
         working-directory: ./terraform
         if: inputs.destroy != 'true'
 
