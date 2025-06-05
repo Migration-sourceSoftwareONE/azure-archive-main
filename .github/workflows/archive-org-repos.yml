@@ -3,7 +3,16 @@ name: Archive Private Repos to Azure
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 3 * * 5"   # <=== Runs at 03:00, only on Friday.
+    - cron: "0 3 * * 5"   # Runs at 03:00, only on Friday.
+  workflow_call:
+    secrets:
+      ARCHIVE_APP_ID:
+        required: true
+      ARCHIVE_APP_PRIVATE_KEY:
+        required: true
+      AZURE_STORAGE_KEY:
+        required: true
+
 jobs:
   archive:
     runs-on: windows-latest
@@ -16,6 +25,34 @@ jobs:
         run: |
           Install-Module -Name Az.Accounts -Force -Scope CurrentUser
           Install-Module -Name Az.Storage -Force -Scope CurrentUser
+
+      - name: Verify Azure Resources
+        run: |
+          $ErrorActionPreference = "Stop"
+          
+          $storageAccount = "${{ vars.AZURE_STORAGE_ACCOUNT }}"
+          $containerName = "${{ vars.CONTAINER_NAME }}"
+          
+          if ([string]::IsNullOrEmpty($storageAccount)) {
+            Write-Error "Storage account name is not set. Please check GitHub repository variables."
+            exit 1
+          }
+          
+          if ([string]::IsNullOrEmpty($containerName)) {
+            Write-Error "Container name is not set. Please check GitHub repository variables."
+            exit 1
+          }
+          
+          $connectionString = "DefaultEndpointsProtocol=https;AccountName=$storageAccount;AccountKey=${{ secrets.AZURE_STORAGE_KEY }};EndpointSuffix=core.windows.net"
+          $ctx = New-AzStorageContext -ConnectionString $connectionString
+          
+          try {
+            Get-AzStorageContainer -Name $containerName -Context $ctx | Out-Null
+            Write-Host "✅ Azure resources verified successfully."
+          } catch {
+            Write-Error "Failed to access container '$containerName' in storage account '$storageAccount'. Please ensure the Terraform deployment has been run successfully."
+            exit 1
+          }
 
       - name: Create Token
         id: create_token
@@ -32,7 +69,6 @@ jobs:
             -StorageAccountName ${{ vars.AZURE_STORAGE_ACCOUNT }} `
             -StorageAccountKey ${{ secrets.AZURE_STORAGE_KEY }} `
             -ContainerName ${{ vars.CONTAINER_NAME }} `
+            -RetentionDays 60
         env:
           GITHUB_TOKEN: ${{ steps.create_token.outputs.token }}
-          AZURE_STORAGE_ACCOUNT: ${{ vars.AZURE_STORAGE_ACCOUNT }}
-          AZURE_STORAGE_KEY: ${{ secrets.AZURE_STORAGE_KEY }}
