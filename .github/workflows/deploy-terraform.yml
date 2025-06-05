@@ -67,35 +67,35 @@ jobs:
           echo "$storage_key" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
-      - name: Update GitHub Variables and Secrets
+      - name: Update variables and secrets
         uses: actions/github-script@v6
         with:
-          script: |
-            const storage_account = '${{ steps.set_outputs.outputs.storage_account_name }}';
-            const container_name = '${{ steps.set_outputs.outputs.container_name }}';
-            const storage_key = process.env.STORAGE_KEY;
+        script: |
+         const storage_account = '${{ steps.terraform-output.outputs.storage_account_name }}';
+         const container_name = '${{ steps.terraform-output.outputs.container_name }}';
+         const storage_key = '${{ steps.terraform-output.outputs.storage_account_key }}';
+         
+         // Update variables using direct API calls
+         await github.request('POST /repos/{owner}/{repo}/actions/variables', {
+          owner: context.repo.owner,
+          repo: context.repo.repo,
+          name: 'AZURE_STORAGE_ACCOUNT',
+          value: storage_account
+         });
+      
+         await github.request('POST /repos/{owner}/{repo}/actions/variables', {
+          owner: context.repo.owner,
+          repo: context.repo.repo,
+          name: 'CONTAINER_NAME',
+        value: container_name
+         });
+
+         // Update secret using direct API call
+         await github.request('PUT /repos/{owner}/{repo}/actions/secrets/AZURE_STORAGE_KEY', {
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        secret_name: 'AZURE_STORAGE_KEY',
+        encrypted_value: Buffer.from(storage_key).toString('base64')
+        });
             
-            // Update variables
-            await github.rest.actions.createOrUpdateRepoVariable({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              name: 'AZURE_STORAGE_ACCOUNT',
-              value: '${{ steps.terraform-output.outputs.storage_account_name }}'
-            });
-            
-            await github.rest.actions.createOrUpdateRepoVariable({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              name: 'CONTAINER_NAME',
-              value: '${{ steps.terraform-output.outputs.storage_account_name }}'
-            });
-            
-            // Update secret
-            await github.rest.actions.createOrUpdateRepoSecret({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              secret_name: 'AZURE_STORAGE_KEY',
-              encrypted_value: Buffer.from(storage_key).toString('base64')
-            });
-            
-            console.log('✅ GitHub variables and secrets updated successfully.');
+console.log('✅ GitHub variables and secrets updated successfully.');
