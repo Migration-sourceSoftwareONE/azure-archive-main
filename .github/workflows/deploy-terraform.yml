@@ -16,7 +16,7 @@ on:
       destroy:
         description: 'Set to "true" to destroy infrastructure'
         required: false
-        default: false
+        default: 'false'
         type: boolean
     secrets:
       ARM_CLIENT_ID:
@@ -56,10 +56,12 @@ jobs:
       - name: Azure Login
         uses: azure/login@v1
         with:
-         client-id: ${{ secrets.ARM_CLIENT_ID }}
-         tenant-id: ${{ secrets.ARM_TENANT_ID }}
-         subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-         client-secret: ${{ secrets.ARM_CLIENT_SECRET }}
+          creds: ${{ secrets.AZURE_CREDENTIALS }}  # Use this format for client secret auth
+          # OR use this format instead:
+          # auth-type: 'service-principal'
+          # client-id: ${{ secrets.ARM_CLIENT_ID }}
+          # tenant-id: ${{ secrets.ARM_TENANT_ID }}
+          # subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
 
       - name: Terraform Init
         id: init
@@ -73,21 +75,43 @@ jobs:
 
       - name: Terraform Plan
         id: plan
-        run: terraform plan -no-color -var="resource_group_name=rg-github-backup" -var="location=westeurope" -var="storage_account_name=ghbackupsa${{ github.run_id }}" -var="container_name=repositories"
+        run: |
+          terraform plan \
+            -no-color \
+            -input=false \
+            -parallelism=10 \
+            -var="resource_group_name=rg-github-backup" \
+            -var="location=westeurope" \
+            -var="storage_account_name=ghbackupsa${{ github.run_id }}" \
+            -var="container_name=repositories"
         working-directory: ./terraform
-        if: github.event.inputs.destroy != 'true'
+        if: ${{ inputs.destroy != true }}
 
       - name: Terraform Apply
         id: apply
-        run: terraform apply -auto-approve -var="resource_group_name=rg-github-backup" -var="location=westeurope" -var="storage_account_name=ghbackupsa${{ github.run_id }}" -var="container_name=repositories"
+        run: |
+          terraform apply \
+            -auto-approve \
+            -input=false \
+            -var="resource_group_name=rg-github-backup" \
+            -var="location=westeurope" \
+            -var="storage_account_name=ghbackupsa${{ github.run_id }}" \
+            -var="container_name=repositories"
         working-directory: ./terraform
-        if: github.event.inputs.destroy != 'true'
+        if: ${{ inputs.destroy != true }}
 
       - name: Terraform Destroy
         id: destroy
-        run: terraform destroy -auto-approve -var="resource_group_name=rg-github-backup" -var="location=westeurope" -var="storage_account_name=ghbackupsa${{ github.run_id }}" -var="container_name=repositories"
+        run: |
+          terraform destroy \
+            -auto-approve \
+            -input=false \
+            -var="resource_group_name=rg-github-backup" \
+            -var="location=westeurope" \
+            -var="storage_account_name=ghbackupsa${{ github.run_id }}" \
+            -var="container_name=repositories"
         working-directory: ./terraform
-        if: github.event.inputs.destroy == 'true'
+        if: ${{ inputs.destroy == true }}
 
       - name: Get Terraform outputs
         id: terraform-output
@@ -96,11 +120,11 @@ jobs:
           echo "container_name=$(terraform output -raw container_name)" >> $GITHUB_OUTPUT
           echo "storage_account_key=$(terraform output -raw storage_account_key)" >> $GITHUB_OUTPUT
         working-directory: ./terraform
-        if: github.event.inputs.destroy != 'true'
+        if: ${{ inputs.destroy != true }}
 
       # Set variables using GitHub CLI
       - name: Set GitHub Variables and Secrets
-        if: github.event.inputs.destroy != 'true'
+        if: ${{ inputs.destroy != true }}
         run: |
           # Install GitHub CLI if not already installed
           if ! command -v gh &> /dev/null; then
