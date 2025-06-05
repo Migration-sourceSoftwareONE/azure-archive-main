@@ -11,6 +11,22 @@ on:
         options:
           - 'false'
           - 'true'
+  workflow_call:  # Add this section to make the workflow reusable
+    inputs:
+      destroy:
+        description: 'Set to "true" to destroy infrastructure'
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      ARM_CLIENT_ID:
+        required: true
+      ARM_CLIENT_SECRET:
+        required: true
+      ARM_TENANT_ID:
+        required: true
+      ARM_SUBSCRIPTION_ID:
+        required: true
 
 permissions:
   contents: read
