@@ -53,17 +53,6 @@ jobs:
         with:
           terraform_version: 1.5.7
 
-      - name: Create Azure Credentials JSON
-        id: azure-credentials
-        run: |
-          echo '{
-            "clientId": "${{ secrets.ARM_CLIENT_ID }}",
-            "clientSecret": "${{ secrets.ARM_CLIENT_SECRET }}",
-            "subscriptionId": "${{ secrets.ARM_SUBSCRIPTION_ID }}",
-            "tenantId": "${{ secrets.ARM_TENANT_ID }}"
-          }' > azure-credentials.json
-          echo "::set-output name=path::azure-credentials.json"
-      
       - name: Azure Login
         uses: azure/login@v1
         with:
@@ -89,6 +78,8 @@ jobs:
             -no-color \
             -input=false \
             -parallelism=10 \
+            -var="subscription_id=${{ secrets.ARM_SUBSCRIPTION_ID }}" \
+            -var="tenant_id=${{ secrets.ARM_TENANT_ID }}" \
             -var="resource_group_name=rg-github-backup" \
             -var="location=westeurope" \
             -var="storage_account_name=ghbackupsa${{ github.run_id }}" \
@@ -102,6 +93,8 @@ jobs:
           terraform apply \
             -auto-approve \
             -input=false \
+            -var="subscription_id=${{ secrets.ARM_SUBSCRIPTION_ID }}" \
+            -var="tenant_id=${{ secrets.ARM_TENANT_ID }}" \
             -var="resource_group_name=rg-github-backup" \
             -var="location=westeurope" \
             -var="storage_account_name=ghbackupsa${{ github.run_id }}" \
@@ -115,6 +108,8 @@ jobs:
           terraform destroy \
             -auto-approve \
             -input=false \
+            -var="subscription_id=${{ secrets.ARM_SUBSCRIPTION_ID }}" \
+            -var="tenant_id=${{ secrets.ARM_TENANT_ID }}" \
             -var="resource_group_name=rg-github-backup" \
             -var="location=westeurope" \
             -var="storage_account_name=ghbackupsa${{ github.run_id }}" \
