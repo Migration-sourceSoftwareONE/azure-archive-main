@@ -1,0 +1,101 @@
+name: Deploy Terraform Storage
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    secrets:
+      ARM_CLIENT_ID:
+        required: true
+      ARM_CLIENT_SECRET:
+        required: true
+      ARM_SUBSCRIPTION_ID:
+        required: true
+      ARM_TENANT_ID:
+        required: true
+
+env:
+  ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+  ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+  ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    
+    outputs:
+      storage_account_name: ${{ steps.set_outputs.outputs.storage_account_name }}
+      container_name: ${{ steps.set_outputs.outputs.container_name }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Apply
+        run: |
+          terraform apply -auto-approve \
+            -var "subscription_id=${ARM_SUBSCRIPTION_ID}" \
+            -var "tenant_id=${ARM_TENANT_ID}"
+
+      - name: Extract Terraform Outputs
+        id: terraform_output
+        run: terraform output -json
+
+      - name: Set outputs for workflow
+        id: set_outputs
+        run: |
+          storage_account=$(terraform output -raw storage_account_name)
+          container_name=$(terraform output -raw container_name)
+          storage_key=$(terraform output -raw storage_account_primary_key)
+          
+          echo "storage_account_name=$storage_account" >> $GITHUB_OUTPUT
+          echo "container_name=$container_name" >> $GITHUB_OUTPUT
+          
+          # Store storage key as a secret
+          echo "STORAGE_KEY<<EOF" >> $GITHUB_ENV
+          echo "$storage_key" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Update GitHub Variables and Secrets
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const storage_account = '${{ steps.set_outputs.outputs.storage_account_name }}';
+            const container_name = '${{ steps.set_outputs.outputs.container_name }}';
+            const storage_key = process.env.STORAGE_KEY;
+            
+            // Update variables
+            await github.rest.actions.createOrUpdateRepoVariable({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'AZURE_STORAGE_ACCOUNT',
+              value: storage_account
+            });
+            
+            await github.rest.actions.createOrUpdateRepoVariable({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'CONTAINER_NAME',
+              value: container_name
+            });
+            
+            // Update secret
+            await github.rest.actions.createOrUpdateRepoSecret({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              secret_name: 'AZURE_STORAGE_KEY',
+              encrypted_value: Buffer.from(storage_key).toString('base64')
+            });
+            
+            console.log('✅ GitHub variables and secrets updated successfully.');
