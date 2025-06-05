@@ -27,9 +27,7 @@ on:
         required: true
       ARM_SUBSCRIPTION_ID:
         required: true
-      GITHUB_TOKEN:
-        required: true
-
+        
 permissions:
   contents: read
   id-token: write
