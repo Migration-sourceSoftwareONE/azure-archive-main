@@ -1,101 +1,104 @@
-name: Deploy Terraform Storage
+name: Deploy Terraform Infrastructure
 
 on:
   workflow_dispatch:
-  workflow_call:
-    secrets:
-      ARM_CLIENT_ID:
-        required: true
-      ARM_CLIENT_SECRET:
-        required: true
-      ARM_SUBSCRIPTION_ID:
-        required: true
-      ARM_TENANT_ID:
-        required: true
+    inputs:
+      destroy:
+        description: 'Set to "true" to destroy infrastructure'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
-env:
-  ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
-  ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
-  ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-  ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+permissions:
+  contents: read
+  id-token: write
 
 jobs:
   terraform:
+    name: 'Terraform'
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: terraform
-    
-    outputs:
-      storage_account_name: ${{ steps.set_outputs.outputs.storage_account_name }}
-      container_name: ${{ steps.set_outputs.outputs.container_name }}
+    environment: production
+
+    # These permissions are needed to interact with GitHub's OIDC Token endpoint
+    permissions:
+      id-token: write
+      contents: read
+      actions: write  # Needed to create/update secrets & variables
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v3
 
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: 1.7.5
+          terraform_version: 1.5.7
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.ARM_CLIENT_ID }}
+          tenant-id: ${{ secrets.ARM_TENANT_ID }}
+          subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
 
       - name: Terraform Init
+        id: init
         run: terraform init
+        working-directory: ./terraform
+
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate -no-color
+        working-directory: ./terraform
+
+      - name: Terraform Plan
+        id: plan
+        run: terraform plan -no-color -var="resource_group_name=rg-github-backup" -var="location=westeurope" -var="storage_account_name=ghbackupsa${{ github.run_id }}" -var="container_name=repositories"
+        working-directory: ./terraform
+        if: github.event.inputs.destroy != 'true'
 
       - name: Terraform Apply
+        id: apply
+        run: terraform apply -auto-approve -var="resource_group_name=rg-github-backup" -var="location=westeurope" -var="storage_account_name=ghbackupsa${{ github.run_id }}" -var="container_name=repositories"
+        working-directory: ./terraform
+        if: github.event.inputs.destroy != 'true'
+
+      - name: Terraform Destroy
+        id: destroy
+        run: terraform destroy -auto-approve -var="resource_group_name=rg-github-backup" -var="location=westeurope" -var="storage_account_name=ghbackupsa${{ github.run_id }}" -var="container_name=repositories"
+        working-directory: ./terraform
+        if: github.event.inputs.destroy == 'true'
+
+      - name: Get Terraform outputs
+        id: terraform-output
         run: |
-          terraform apply -auto-approve \
-            -var "subscription_id=${ARM_SUBSCRIPTION_ID}" \
-            -var "tenant_id=${ARM_TENANT_ID}"
+          echo "storage_account_name=$(terraform output -raw storage_account_name)" >> $GITHUB_OUTPUT
+          echo "container_name=$(terraform output -raw container_name)" >> $GITHUB_OUTPUT
+          echo "storage_account_key=$(terraform output -raw storage_account_key)" >> $GITHUB_OUTPUT
+        working-directory: ./terraform
+        if: github.event.inputs.destroy != 'true'
 
-      - name: Extract Terraform Outputs
-        id: terraform_output
-        run: terraform output -json
-
-      - name: Set outputs for workflow
-        id: set_outputs
+      # Set variables using GitHub CLI
+      - name: Set GitHub Variables and Secrets
+        if: github.event.inputs.destroy != 'true'
         run: |
-          storage_account=$(terraform output -raw storage_account_name)
-          container_name=$(terraform output -raw container_name)
-          storage_key=$(terraform output -raw storage_account_primary_key)
+          # Install GitHub CLI if not already installed
+          if ! command -v gh &> /dev/null; then
+            curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+            sudo apt update
+            sudo apt install gh
+          fi
           
-          echo "storage_account_name=$storage_account" >> $GITHUB_OUTPUT
-          echo "container_name=$container_name" >> $GITHUB_OUTPUT
+          # Set variables and secrets using gh CLI
+          gh auth login --with-token <<< "${{ secrets.GITHUB_TOKEN }}"
           
-          # Store storage key as a secret
-          echo "STORAGE_KEY<<EOF" >> $GITHUB_ENV
-          echo "$storage_key" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-
-      - name: Update variables and secrets
-        uses: actions/github-script@v6
-        with:
-        script: |
-         const storage_account = '${{ steps.terraform-output.outputs.storage_account_name }}';
-         const container_name = '${{ steps.terraform-output.outputs.container_name }}';
-         const storage_key = '${{ steps.terraform-output.outputs.storage_account_key }}';
-         
-         // Update variables using direct API calls
-         await github.request('POST /repos/{owner}/{repo}/actions/variables', {
-          owner: context.repo.owner,
-          repo: context.repo.repo,
-          name: 'AZURE_STORAGE_ACCOUNT',
-          value: storage_account
-         });
-      
-         await github.request('POST /repos/{owner}/{repo}/actions/variables', {
-          owner: context.repo.owner,
-          repo: context.repo.repo,
-          name: 'CONTAINER_NAME',
-        value: container_name
-         });
-
-         // Update secret using direct API call
-         await github.request('PUT /repos/{owner}/{repo}/actions/secrets/AZURE_STORAGE_KEY', {
-        owner: context.repo.owner,
-        repo: context.repo.repo,
-        secret_name: 'AZURE_STORAGE_KEY',
-        encrypted_value: Buffer.from(storage_key).toString('base64')
-        });
-            
-console.log('✅ GitHub variables and secrets updated successfully.');
+          # Set variables
+          gh variable set AZURE_STORAGE_ACCOUNT --body "${{ steps.terraform-output.outputs.storage_account_name }}"
+          gh variable set CONTAINER_NAME --body "${{ steps.terraform-output.outputs.container_name }}"
+          
+          # Set secret
+          gh secret set AZURE_STORAGE_KEY --body "${{ steps.terraform-output.outputs.storage_account_key }}"
