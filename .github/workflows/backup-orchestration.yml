@@ -12,6 +12,22 @@ on:
         type: number
         default: '60'
         required: false
+  workflow_call:  # Add this section to make the workflow reusable
+    inputs:
+      destroy:
+        description: 'Set to "true" to destroy infrastructure'
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      ARM_CLIENT_ID:
+        required: true
+      ARM_CLIENT_SECRET:
+        required: true
+      ARM_TENANT_ID:
+        required: true
+      ARM_SUBSCRIPTION_ID:
+        required: true
   schedule:
     - cron: "0 1 * * 5"  # 1:00 AM on Fridays (before the archive job)
 
