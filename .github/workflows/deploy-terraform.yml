@@ -120,24 +120,10 @@ jobs:
       - name: Get Terraform outputs
         id: terraform-output
         run: |
-          # Store Terraform outputs in separate files first to inspect them
-          terraform output -json > terraform_outputs.json
-          cat terraform_outputs.json
-          
-          # Extract values from the JSON with error handling
-          STORAGE_ACCOUNT=$(jq -r '.storage_account_name.value' terraform_outputs.json)
-          CONTAINER_NAME=$(jq -r '.container_name.value' terraform_outputs.json)
-          STORAGE_KEY=$(jq -r '.storage_account_key.value' terraform_outputs.json)
-          
-          # Check if values are valid
-          echo "Storage account name: $STORAGE_ACCOUNT"
-          echo "Container name: $CONTAINER_NAME"
-          echo "Storage key retrieved: $(if [ -n "$STORAGE_KEY" ]; then echo "Yes"; else echo "No"; fi)"
-          
-          # Set the outputs correctly
-          echo "storage_account_name=$STORAGE_ACCOUNT" >> $GITHUB_OUTPUT
-          echo "container_name=$CONTAINER_NAME" >> $GITHUB_OUTPUT
-          echo "storage_account_key=$STORAGE_KEY" >> $GITHUB_OUTPUT
+          # Store Terraform outputs directly in GitHub outputs
+          echo "storage_account_name=$(terraform output -raw storage_account_name)" >> $GITHUB_OUTPUT
+          echo "container_name=$(terraform output -raw container_name)" >> $GITHUB_OUTPUT
+          echo "storage_account_key=$(terraform output -raw storage_account_primary_key)" >> $GITHUB_OUTPUT
         working-directory: ./terraform
         if: inputs.destroy != 'true'
 
@@ -153,30 +139,12 @@ jobs:
             sudo apt install gh
           fi
           
-          # Set variables and secrets using gh CLI with error handling
+          # Set variables and secrets using gh CLI
           gh auth login --with-token <<< "${{ secrets.GITHUB_TOKEN }}"
           
-          # Verify output variables before setting them
-          if [ -n "${{ steps.terraform-output.outputs.storage_account_name }}" ]; then
-            gh variable set AZURE_STORAGE_ACCOUNT --body "${{ steps.terraform-output.outputs.storage_account_name }}"
-            echo "Set AZURE_STORAGE_ACCOUNT variable successfully"
-          else
-            echo "Error: storage_account_name is empty"
-            exit 1
-          fi
+          # Set variables
+          gh variable set AZURE_STORAGE_ACCOUNT --body "${{ steps.terraform-output.outputs.storage_account_name }}"
+          gh variable set CONTAINER_NAME --body "${{ steps.terraform-output.outputs.container_name }}"
           
-          if [ -n "${{ steps.terraform-output.outputs.container_name }}" ]; then
-            gh variable set CONTAINER_NAME --body "${{ steps.terraform-output.outputs.container_name }}"
-            echo "Set CONTAINER_NAME variable successfully"
-          else
-            echo "Error: container_name is empty"
-            exit 1
-          fi
-          
-          if [ -n "${{ steps.terraform-output.outputs.storage_account_key }}" ]; then
-            gh secret set AZURE_STORAGE_KEY --body "${{ steps.terraform-output.outputs.storage_account_key }}"
-            echo "Set AZURE_STORAGE_KEY secret successfully"
-          else
-            echo "Error: storage_account_key is empty"
-            exit 1
-          fi
+          # Set secret
+          gh secret set AZURE_STORAGE_KEY --body "${{ steps.terraform-output.outputs.storage_account_key }}"
