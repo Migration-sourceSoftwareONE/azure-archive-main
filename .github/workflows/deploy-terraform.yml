@@ -109,7 +109,7 @@ jobs:
         working-directory: ./terraform
         shell: bash
         env:
-        GH_TOKEN: ${{ secrets.SOURCE_PAT }}
+            GH_TOKEN: ${{ secrets.SOURCE_PAT }}
         run: |
          RESOURCE_GROUP_NAME="rg-github-archives"
          STORAGE_ACCOUNT_NAME="ghrepoarchive123"
