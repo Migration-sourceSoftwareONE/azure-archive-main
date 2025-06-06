@@ -108,30 +108,21 @@ jobs:
       - name: Get Terraform outputs and set variables
         id: terraform-output
         run: |
-         # Get all outputs as JSON and save to a file
-         terraform output -json > terraform_outputs.json
+         # Explicitly get each output separately with error handling
+         STORAGE_ACCOUNT_NAME=$(terraform output -raw storage_account_name || echo "")
+         CONTAINER_NAME=$(terraform output -raw container_name || echo "")
+         # For sensitive outputs, make sure to use -raw
+         KEY=$(terraform output -raw storage_account_primary_key || echo "")
     
-         # Read values from the JSON file
-         STORAGE_ACCOUNT_NAME=$(jq -r '.storage_account_name.value' terraform_outputs.json)
-         CONTAINER_NAME=$(jq -r '.container_name.value' terraform_outputs.json)
-         RESOURCE_GROUP_NAME=$(jq -r '.resource_group_name.value' terraform_outputs.json)
-         KEY=$(jq -r '.storage_account_primary_key.value' terraform_outputs.json)
-    
-         # Debug info
-         echo "Storage account: $STORAGE_ACCOUNT_NAME"
-         echo "Container: $CONTAINER_NAME" 
-         echo "Resource group: $RESOURCE_GROUP_NAME"
-         echo "Key retrieved: $(if [ -n "$KEY" ]; then echo 'Yes'; else echo 'No'; fi)"
-    
-         # Set outputs and environment variables
-         echo "storage_account_name=$STORAGE_ACCOUNT_NAME" >> $GITHUB_OUTPUT
-         echo "container_name=$CONTAINER_NAME" >> $GITHUB_OUTPUT
-         echo "storage_account_key=$KEY" >> $GITHUB_OUTPUT
-    
+         # Set the environment variables
+         echo "::add-mask::$KEY"  # Mask the key in logs for security
          echo "AZURE_STORAGE_ACCOUNT=$STORAGE_ACCOUNT_NAME" >> $GITHUB_ENV
          echo "CONTAINER_NAME=$CONTAINER_NAME" >> $GITHUB_ENV
          echo "AZURE_STORAGE_KEY=$KEY" >> $GITHUB_ENV
     
-         echo "Variables set for downstream jobs and steps"
+         # Debug info (without showing the actual key)
+         echo "Storage account: $STORAGE_ACCOUNT_NAME"
+         echo "Container: $CONTAINER_NAME"
+         echo "Key retrieved: $(if [ -n "$KEY" ]; then echo 'Yes'; else echo 'No'; fi)"
          working-directory: ./terraform
          if: inputs.destroy != 'true'
