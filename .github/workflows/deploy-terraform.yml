@@ -11,13 +11,13 @@ on:
         options:
           - 'false'
           - 'true'
-  workflow_call:  # Make the workflow reusable
+  workflow_call:  
     inputs:
       destroy:
         description: 'Set to "true" to destroy infrastructure'
         required: false
         default: 'false'
-        type: string  # Change this to string instead of boolean
+        type: string  
     secrets:
       ARM_CLIENT_ID:
         required: true
@@ -38,7 +38,6 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
 
-    # Updated permissions to ensure we can modify variables and secrets
     permissions:
       id-token: write
       contents: write
@@ -97,9 +96,6 @@ jobs:
             -var="subscription_id=${{ secrets.ARM_SUBSCRIPTION_ID }}" \
             -var="tenant_id=${{ secrets.ARM_TENANT_ID }}" \
             -var="resource_group_name=rg-github-backup" \
-            -var="location=westeurope" \
-            -var="storage_account_name=ghbackupsa${{ github.run_id }}" \
-            -var="container_name=repositories"
         working-directory: ./terraform
         if: inputs.destroy != 'true'
 
@@ -111,38 +107,32 @@ jobs:
             -input=false \
             -var="subscription_id=${{ secrets.ARM_SUBSCRIPTION_ID }}" \
             -var="tenant_id=${{ secrets.ARM_TENANT_ID }}" \
-            -var="resource_group_name=rg-github-backup" \
-            -var="location=westeurope" \
             -var="storage_account_name=ghbackupsa${{ github.run_id }}" \
-            -var="container_name=repositories"
         working-directory: ./terraform
         if: inputs.destroy == 'true'
 
       - name: Get Terraform outputs
         id: terraform-output
         run: |
-          # Use fixed values that we already know
-          # The storage account name is based on the github run id
-          STORAGE_ACCOUNT_NAME="ghbackupsa${{ github.run_id }}"
-          CONTAINER_NAME="repositories"
+          STORAGE_ACCOUNT_NAME=$(terraform output -raw storage_account_name)
+          CONTAINER_NAME=$(terraform output -raw container_name)
+          RESOURCE_GROUP_NAME=$(terraform output -raw resource_group_name)
           
-          # Get the storage account key (more complex, need to fetch it differently)
-          # Use Azure CLI to get the key directly
-          KEY=$(az storage account keys list --account-name "$STORAGE_ACCOUNT_NAME" --resource-group "rg-github-backup" --query '[0].value' -o tsv)
+          KEY=$(az storage account keys list --account-name "$STORAGE_ACCOUNT_NAME" --resource-group "$RESOURCE_GROUP_NAME" --query '[0].value' -o tsv)
           
           # Set the outputs
           echo "storage_account_name=${STORAGE_ACCOUNT_NAME}" >> $GITHUB_OUTPUT
           echo "container_name=${CONTAINER_NAME}" >> $GITHUB_OUTPUT
           echo "storage_account_key=${KEY}" >> $GITHUB_OUTPUT
           
-          # Debug info (will be visible in logs but not affect the outputs)
+          # Debug info 
           echo "Storage account: ${STORAGE_ACCOUNT_NAME}"
           echo "Container: ${CONTAINER_NAME}" 
           echo "Key retrieved: $(if [ -n \"$KEY\" ]; then echo 'Yes'; else echo 'No'; fi)"
         working-directory: ./terraform
         if: inputs.destroy != 'true'
 
-      # Set variables locally in the current workflow run instead of repository variables
+
       - name: Set outputs for downstream jobs
         id: set_outputs
         if: inputs.destroy != 'true'
