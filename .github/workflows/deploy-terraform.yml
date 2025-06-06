@@ -109,11 +109,7 @@ jobs:
         working-directory: ./terraform
         shell: bash
         run: |
-         AZURE_STORAGE_ACCOUNT=$(terraform output -raw storage_account_name 2>/dev/null | head -n1 | tr -d '\r')
-         CONTAINER_NAME=$(terraform output -raw container_name 2>/dev/null | head -n1 | tr -d '\r')
-         #AZURE_STORAGE_KEY=$(terraform output -raw storage_account_primary_key 2>/dev/null | head -n1 | tr -d '\r')
+         echo "AZURE_STORAGE_ACCOUNT=$(terraform output -raw storage_account_name)" >> $GITHUB_ENV
+         echo "CONTAINER_NAME=$(terraform output -raw container_name)" >> $GITHUB_ENV
+         echo "AZURE_STORAGE_KEY=$(terraform output -raw storage_account_primary_key)" >> $GITHUB_ENV
 
-         echo "AZURE_STORAGE_ACCOUNT=$AZURE_STORAGE_ACCOUNT" >> $GITHUB_ENV
-         echo "CONTAINER_NAME=$CONTAINER_NAME" >> $GITHUB_ENV
-        # echo "::add-mask::$AZURE_STORAGE_KEY"
-        # echo "AZURE_STORAGE_KEY=$AZURE_STORAGE_KEY" >> $GITHUB_ENV
