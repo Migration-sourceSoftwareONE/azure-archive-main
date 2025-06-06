@@ -105,35 +105,31 @@ jobs:
         working-directory: ./terraform
         if: inputs.destroy == 'true'
 
-      - name: Get Terraform outputs
+      - name: Get Terraform outputs and set variables
         id: terraform-output
         run: |
+          # Get outputs from terraform
           STORAGE_ACCOUNT_NAME=$(terraform output -raw storage_account_name)
           CONTAINER_NAME=$(terraform output -raw container_name)
           RESOURCE_GROUP_NAME=$(terraform output -raw resource_group_name)
-          
+    
           KEY=$(az storage account keys list --account-name "$STORAGE_ACCOUNT_NAME" --resource-group "$RESOURCE_GROUP_NAME" --query '[0].value' -o tsv)
-          
-          # Set the outputs
+    
+          # Set step outputs (accessible as steps.terraform-output.outputs.x)
           echo "storage_account_name=${STORAGE_ACCOUNT_NAME}" >> $GITHUB_OUTPUT
           echo "container_name=${CONTAINER_NAME}" >> $GITHUB_OUTPUT
           echo "storage_account_key=${KEY}" >> $GITHUB_OUTPUT
-          
-          # Debug info 
+    
+          # Set environment variables (accessible as $VARIABLE_NAME in subsequent steps)
+          echo "AZURE_STORAGE_ACCOUNT=${STORAGE_ACCOUNT_NAME}" >> $GITHUB_ENV
+          echo "CONTAINER_NAME=${CONTAINER_NAME}" >> $GITHUB_ENV
+          echo "AZURE_STORAGE_KEY=${KEY}" >> $GITHUB_ENV
+    
+          # Debug info
           echo "Storage account: ${STORAGE_ACCOUNT_NAME}"
           echo "Container: ${CONTAINER_NAME}" 
+          echo "Resource group: ${RESOURCE_GROUP_NAME}"
           echo "Key retrieved: $(if [ -n \"$KEY\" ]; then echo 'Yes'; else echo 'No'; fi)"
+          echo "Variables set for downstream jobs and steps"
         working-directory: ./terraform
         if: inputs.destroy != 'true'
-
-
-      - name: Set outputs for downstream jobs
-        id: set_outputs
-        if: inputs.destroy != 'true'
-        run: |
-          # Export these values so they can be used by other jobs in this workflow
-          echo "AZURE_STORAGE_ACCOUNT=${{ steps.terraform-output.outputs.storage_account_name }}" >> $GITHUB_ENV
-          echo "CONTAINER_NAME=${{ steps.terraform-output.outputs.container_name }}" >> $GITHUB_ENV
-          echo "AZURE_STORAGE_KEY=${{ steps.terraform-output.outputs.storage_account_key }}" >> $GITHUB_ENV
-          
-          echo "Storage account, container name, and key have been set as environment variables for downstream jobs"
