@@ -108,52 +108,20 @@ jobs:
       - name: Get Terraform outputs and set variables
         id: terraform-output
         working-directory: ./terraform
-        if: inputs.destroy != 'true'
+        shell: bash
         run: |
-         # Find the state file
-         echo "Looking for state file..."
-         find . -name "terraform.tfstate" -type f
-    
-         # Try to refresh the state
-         echo "Refreshing Terraform state..."
-         terraform refresh || echo "Refresh failed, continuing..."
-    
-          # Try to get outputs with debug info
-         echo "Available Terraform outputs:"
-         terraform output || echo "No outputs available"
-    
-          # Set the hardcoded values we know are correct
-         STORAGE_ACCOUNT_NAME="ghrepoarchive123"
-         CONTAINER_NAME="security-backups"
-    
-         # Try to get the primary key
-         echo "Trying to get storage account primary key..."
-         KEY=$(terraform output -raw storage_account_primary_key 2>/dev/null || echo "")
-    
-         if [ -z "$KEY" ]; then
-         echo "Failed to get key directly. Checking if we can get it from state file..."
-          # Try to extract it directly from state file if it exists
-         STATE_FILE=$(find . -name "terraform.tfstate" -type f | head -1)
-         if [ -n "$STATE_FILE" ]; then
-         echo "Found state file at $STATE_FILE"
-         # Try to extract the key using jq if available
-         if command -v jq > /dev/null; then
-           KEY=$(jq -r '.outputs.storage_account_primary_key.value // empty' "$STATE_FILE" 2>/dev/null || echo "")
-           fi
-          fi
-         fi
-    
-         # Set environment variables
-         echo "Setting environment variables..."
+         # Get outputs directly from Terraform
+         STORAGE_ACCOUNT_NAME=$(terraform output -raw storage_account_name)
+         CONTAINER_NAME=$(terraform output -raw container_name)
+         KEY=$(terraform output -raw storage_account_primary_key)
+
+         # Export as environment variables for later steps
          echo "AZURE_STORAGE_ACCOUNT=$STORAGE_ACCOUNT_NAME" >> $GITHUB_ENV
          echo "CONTAINER_NAME=$CONTAINER_NAME" >> $GITHUB_ENV
-    
-         if [ -n "$KEY" ]; then
-         echo "::add-mask::$KEY"  # Mask the key in logs
+         echo "::add-mask::$KEY"
          echo "AZURE_STORAGE_KEY=$KEY" >> $GITHUB_ENV
-         echo "Key retrieved: Yes"
-         else
-         echo "Warning: Could not retrieve storage account key."
-         echo "Key retrieved: No"
-         fi
-         shell: /usr/bin/bash -e {0}
+
+         # Optionally, set as step outputs too
+         echo "storage_account_name=$STORAGE_ACCOUNT_NAME" >> $GITHUB_OUTPUT
+         echo "container_name=$CONTAINER_NAME" >> $GITHUB_OUTPUT
+         echo "storage_account_key=$KEY" >> $GITHUB_OUTPUT
