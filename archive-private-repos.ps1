@@ -1,9 +1,9 @@
 param(
-    [string]$GitHubOrg = "SONE-WorkshopPoligon",
+    [string]$GitHubOrg,
     [string]$GitHubToken,
     [string]$StorageAccountName,
     [string]$StorageAccountKey,
-    [string]$ContainerName = "security-backups",
+    [string]$ContainerName,
     [int]$RetentionDays = 60
 )
 
