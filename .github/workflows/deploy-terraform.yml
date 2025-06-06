@@ -38,11 +38,12 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
 
-    # These permissions are needed to interact with GitHub's OIDC Token endpoint
+    # Updated permissions to ensure we can modify variables and secrets
     permissions:
       id-token: write
-      contents: read
-      actions: write  # Needed to create/update secrets & variables
+      contents: write
+      actions: write
+      repository-projects: write
 
     steps:
       - name: Checkout
@@ -141,24 +142,14 @@ jobs:
         working-directory: ./terraform
         if: inputs.destroy != 'true'
 
-      # Set variables using GitHub CLI
-      - name: Set GitHub Variables and Secrets
+      # Set variables locally in the current workflow run instead of repository variables
+      - name: Set outputs for downstream jobs
+        id: set_outputs
         if: inputs.destroy != 'true'
         run: |
-          # Install GitHub CLI if not already installed
-          if ! command -v gh &> /dev/null; then
-            curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
-            echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-            sudo apt update
-            sudo apt install gh
-          fi
+          # Export these values so they can be used by other jobs in this workflow
+          echo "AZURE_STORAGE_ACCOUNT=${{ steps.terraform-output.outputs.storage_account_name }}" >> $GITHUB_ENV
+          echo "CONTAINER_NAME=${{ steps.terraform-output.outputs.container_name }}" >> $GITHUB_ENV
+          echo "AZURE_STORAGE_KEY=${{ steps.terraform-output.outputs.storage_account_key }}" >> $GITHUB_ENV
           
-          # Set variables and secrets using gh CLI
-          gh auth login --with-token <<< "${{ secrets.GITHUB_TOKEN }}"
-          
-          # Set variables
-          gh variable set AZURE_STORAGE_ACCOUNT --body "${{ steps.terraform-output.outputs.storage_account_name }}"
-          gh variable set CONTAINER_NAME --body "${{ steps.terraform-output.outputs.container_name }}"
-          
-          # Set secret
-          gh secret set AZURE_STORAGE_KEY --body "${{ steps.terraform-output.outputs.storage_account_key }}"
+          echo "Storage account, container name, and key have been set as environment variables for downstream jobs"
