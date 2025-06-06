@@ -1,14 +1,31 @@
-param(
-    [string]$GitHubOrg,
-    [string]$GitHubToken,
-    [string]$StorageAccountName,
-    [string]$StorageAccountKey,
-    [string]$ContainerName,
-    [int]$RetentionDays = 60
-)
+# Script now uses environment variables instead of parameters
 
 Import-Module Az.Accounts -Force
 Import-Module Az.Storage -Force
+
+# Get configuration from environment variables
+$GitHubOrg = $env:GITHUB_ORG
+$GitHubToken = $env:GITHUB_TOKEN
+$StorageAccountName = $env:AZURE_STORAGE_ACCOUNT
+$StorageAccountKey = $env:AZURE_STORAGE_KEY
+$ContainerName = $env:CONTAINER_NAME
+$RetentionDays = if ($env:RETENTION_DAYS) { [int]$env:RETENTION_DAYS } else { 60 }
+
+# Validate required environment variables
+$requiredVariables = @{
+    "GITHUB_ORG" = $GitHubOrg
+    "GITHUB_TOKEN" = $GitHubToken
+    "AZURE_STORAGE_ACCOUNT" = $StorageAccountName
+    "AZURE_STORAGE_KEY" = $StorageAccountKey
+    "CONTAINER_NAME" = $ContainerName
+}
+
+foreach ($key in $requiredVariables.Keys) {
+    if ([string]::IsNullOrEmpty($requiredVariables[$key])) {
+        Write-Error "Required environment variable $key is not set."
+        exit 1
+    }
+}
 
 # Azure Storage context
 $connectionString = "DefaultEndpointsProtocol=https;AccountName=$StorageAccountName;AccountKey=$StorageAccountKey;EndpointSuffix=core.windows.net"
