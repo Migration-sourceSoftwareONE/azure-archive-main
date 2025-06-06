@@ -105,36 +105,10 @@ jobs:
         working-directory: ./terraform
         if: inputs.destroy == 'true'
 
-      - name: Get Terraform outputs and set variables
-        id: terraform-output
+      - name: Set Azure Storage environment variables
         working-directory: ./terraform
         shell: bash
         run: |
-         STORAGE_ACCOUNT_NAME=$(terraform output -raw storage_account_name 2>/dev/null | head -n1 | tr -d '\r')
-         CONTAINER_NAME=$(terraform output -raw container_name 2>/dev/null | head -n1 | tr -d '\r')
-         KEY=$(terraform output -raw storage_account_primary_key 2>/dev/null | head -n1 | tr -d '\r')
-
-         echo "DEBUG: STORAGE_ACCOUNT_NAME=$STORAGE_ACCOUNT_NAME"
-         echo "DEBUG: CONTAINER_NAME=$CONTAINER_NAME"
-         echo "DEBUG: KEY=$KEY"
-
-         for varname in STORAGE_ACCOUNT_NAME CONTAINER_NAME KEY; do
-         value="${!varname}"
-         if [[ -z "$value" ]]; then
-         echo "::error::$varname is empty!"
-         exit 1
-         fi
-         if [[ "$value" == *"::debug::"* ]]; then
-         echo "::error::$varname was polluted with debug text: $value"
-         exit 1
-         fi
-         done
-
-         echo "AZURE_STORAGE_ACCOUNT=$STORAGE_ACCOUNT_NAME" >> $GITHUB_ENV
-         echo "CONTAINER_NAME=$CONTAINER_NAME" >> $GITHUB_ENV
-         echo "::add-mask::$KEY"
-         echo "AZURE_STORAGE_KEY=$KEY" >> $GITHUB_ENV
-
-         echo "storage_account_name=$STORAGE_ACCOUNT_NAME" >> $GITHUB_OUTPUT
-         echo "container_name=$CONTAINER_NAME" >> $GITHUB_OUTPUT
-         echo "storage_account_key=$KEY" >> $GITHUB_OUTPUT
+         echo "AZURE_STORAGE_ACCOUNT=$(terraform output -raw storage_account_name)" >> $GITHUB_ENV
+         echo "CONTAINER_NAME=$(terraform output -raw container_name)" >> $GITHUB_ENV
+         echo "AZURE_STORAGE_KEY=$(terraform output -raw storage_account_primary_key)" >> $GITHUB_ENV
