@@ -110,18 +110,24 @@ jobs:
         working-directory: ./terraform
         shell: bash
         run: |
-         # Get outputs directly from Terraform
-         STORAGE_ACCOUNT_NAME=$(terraform output -raw storage_account_name)
-         CONTAINER_NAME=$(terraform output -raw container_name)
-         KEY=$(terraform output -raw storage_account_primary_key)
+         # Only capture the first line of output, suppress everything else
+         STORAGE_ACCOUNT_NAME=$(terraform output -raw storage_account_name 2>/dev/null | head -n1 | tr -d '\r')
+         CONTAINER_NAME=$(terraform output -raw container_name 2>/dev/null | head -n1 | tr -d '\r')
+         KEY=$(terraform output -raw storage_account_primary_key 2>/dev/null | head -n1 | tr -d '\r')
 
-         # Export as environment variables for later steps
+         # Basic validation to prevent accidental pollution
+         for var in "$STORAGE_ACCOUNT_NAME" "$CONTAINER_NAME" "$KEY"; do
+         if [[ "$var" == *"::debug::"* ]]; then
+          echo "::error::A Terraform output was polluted with debug text: $var"
+         exit 1
+         fi
+         done
+
          echo "AZURE_STORAGE_ACCOUNT=$STORAGE_ACCOUNT_NAME" >> $GITHUB_ENV
          echo "CONTAINER_NAME=$CONTAINER_NAME" >> $GITHUB_ENV
          echo "::add-mask::$KEY"
          echo "AZURE_STORAGE_KEY=$KEY" >> $GITHUB_ENV
 
-         # Optionally, set as step outputs too
          echo "storage_account_name=$STORAGE_ACCOUNT_NAME" >> $GITHUB_OUTPUT
          echo "container_name=$CONTAINER_NAME" >> $GITHUB_OUTPUT
          echo "storage_account_key=$KEY" >> $GITHUB_OUTPUT
