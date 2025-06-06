@@ -50,4 +50,9 @@ jobs:
     secrets:
       ARCHIVE_APP_ID: ${{ secrets.ARCHIVE_APP_ID }}
       ARCHIVE_APP_PRIVATE_KEY: ${{ secrets.ARCHIVE_APP_PRIVATE_KEY }}
-      AZURE_STORAGE_KEY: ${{ secrets.AZURE_STORAGE_KEY }}
+      # Either use the outputs from the terraform job or fall back to repository secrets
+      AZURE_STORAGE_KEY: ${{ needs.terraform.outputs.AZURE_STORAGE_KEY || secrets.AZURE_STORAGE_KEY }}
+    with:
+      # Pass the storage account and container name as inputs
+      AZURE_STORAGE_ACCOUNT: ${{ needs.terraform.outputs.AZURE_STORAGE_ACCOUNT || vars.AZURE_STORAGE_ACCOUNT }}
+      CONTAINER_NAME: ${{ needs.terraform.outputs.CONTAINER_NAME || vars.CONTAINER_NAME }}
