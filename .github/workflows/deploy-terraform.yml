@@ -80,10 +80,6 @@ jobs:
             -parallelism=10 \
             -var="subscription_id=${{ secrets.ARM_SUBSCRIPTION_ID }}" \
             -var="tenant_id=${{ secrets.ARM_TENANT_ID }}" \
-            -var="resource_group_name=rg-github-backup" \
-            -var="location=westeurope" \
-            -var="storage_account_name=ghbackupsa${{ github.run_id }}" \
-            -var="container_name=repositories"
         working-directory: ./terraform
         if: inputs.destroy != 'true'
 
@@ -95,7 +91,6 @@ jobs:
             -input=false \
             -var="subscription_id=${{ secrets.ARM_SUBSCRIPTION_ID }}" \
             -var="tenant_id=${{ secrets.ARM_TENANT_ID }}" \
-            -var="resource_group_name=rg-github-backup" \
         working-directory: ./terraform
         if: inputs.destroy != 'true'
 
@@ -107,7 +102,6 @@ jobs:
             -input=false \
             -var="subscription_id=${{ secrets.ARM_SUBSCRIPTION_ID }}" \
             -var="tenant_id=${{ secrets.ARM_TENANT_ID }}" \
-            -var="storage_account_name=ghbackupsa${{ github.run_id }}" \
         working-directory: ./terraform
         if: inputs.destroy == 'true'
 
