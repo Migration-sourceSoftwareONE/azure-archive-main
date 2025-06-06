@@ -108,28 +108,34 @@ jobs:
       - name: Get Terraform outputs and set variables
         id: terraform-output
         run: |
-          # Get outputs from terraform
-          STORAGE_ACCOUNT_NAME=$(terraform output -raw storage_account_name)
-          CONTAINER_NAME=$(terraform output -raw container_name)
-          RESOURCE_GROUP_NAME=$(terraform output -raw resource_group_name)
+         # Get outputs from terraform and remove debug information
+         STORAGE_ACCOUNT_NAME=$(terraform output -raw storage_account_name 2>/dev/null)
+         CONTAINER_NAME=$(terraform output -raw container_name 2>/dev/null)
+         RESOURCE_GROUP_NAME=$(terraform output -raw resource_group_name 2>/dev/null)
     
-          KEY=$(terraform output -raw storage_account_primary_key)
+         # Clean up any debug info that might be included
+         STORAGE_ACCOUNT_NAME=$(echo "$STORAGE_ACCOUNT_NAME" | grep -v '^::debug::' | head -1)
+         CONTAINER_NAME=$(echo "$CONTAINER_NAME" | grep -v '^::debug::' | head -1)
+         RESOURCE_GROUP_NAME=$(echo "$RESOURCE_GROUP_NAME" | grep -v '^::debug::' | head -1)
     
-          # Set step outputs (accessible as steps.terraform-output.outputs.x)
-          echo "storage_account_name=${STORAGE_ACCOUNT_NAME}" >> $GITHUB_OUTPUT
-          echo "container_name=${CONTAINER_NAME}" >> $GITHUB_OUTPUT
-          echo "storage_account_key=${KEY}" >> $GITHUB_OUTPUT
+         # Get the key directly from Terraform output
+         KEY=$(terraform output -raw storage_account_primary_key 2>/dev/null)
+         KEY=$(echo "$KEY" | grep -v '^::debug::' | head -1)
     
-          # Set environment variables (accessible as $VARIABLE_NAME in subsequent steps)
-          echo "AZURE_STORAGE_ACCOUNT=${STORAGE_ACCOUNT_NAME}" >> $GITHUB_ENV
-          echo "CONTAINER_NAME=${CONTAINER_NAME}" >> $GITHUB_ENV
-          echo "AZURE_STORAGE_KEY=${KEY}" >> $GITHUB_ENV
+         # Set outputs and environment variables
+         echo "storage_account_name=$STORAGE_ACCOUNT_NAME" >> $GITHUB_OUTPUT
+         echo "container_name=$CONTAINER_NAME" >> $GITHUB_OUTPUT
+         echo "storage_account_key=$KEY" >> $GITHUB_OUTPUT
     
-          # Debug info
-          echo "Storage account: ${STORAGE_ACCOUNT_NAME}"
-          echo "Container: ${CONTAINER_NAME}" 
-          echo "Resource group: ${RESOURCE_GROUP_NAME}"
-          echo "Key retrieved: $(if [ -n \"$KEY\" ]; then echo 'Yes'; else echo 'No'; fi)"
-          echo "Variables set for downstream jobs and steps"
+         echo "AZURE_STORAGE_ACCOUNT=$STORAGE_ACCOUNT_NAME" >> $GITHUB_ENV
+         echo "CONTAINER_NAME=$CONTAINER_NAME" >> $GITHUB_ENV
+         echo "AZURE_STORAGE_KEY=$KEY" >> $GITHUB_ENV
+    
+         # Debug info
+         echo "Storage account: $STORAGE_ACCOUNT_NAME"
+         echo "Container: $CONTAINER_NAME" 
+         echo "Resource group: $RESOURCE_GROUP_NAME"
+         echo "Key retrieved: $(if [ -n "$KEY" ]; then echo 'Yes'; else echo 'No'; fi)"
+         echo "Variables set for downstream jobs and steps"
         working-directory: ./terraform
         if: inputs.destroy != 'true'
