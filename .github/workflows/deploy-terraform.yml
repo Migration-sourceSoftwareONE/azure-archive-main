@@ -109,9 +109,18 @@ jobs:
         working-directory: ./terraform
         shell: bash
         run: |
-         AZURE_STORAGE_ACCOUNT=$(terraform output -raw storage_account_name 2>/dev/null | head -n1 | tr -d '\r')
-         CONTAINER_NAME=$(terraform output -raw container_name 2>/dev/null | head -n1 | tr -d '\r')
-         AZURE_STORAGE_KEY=$(terraform output -raw storage_account_primary_key 2>/dev/null | head -n1 | tr -d '\r')
+         AZURE_STORAGE_ACCOUNT=$(terraform output -raw storage_account_name 2>/dev/null | grep -Eo '^[a-z0-9]+$' | head -n1)
+         CONTAINER_NAME=$(terraform output -raw container_name 2>/dev/null | grep -Eo '^[a-z0-9-]+$' | head -n1)
+         AZURE_STORAGE_KEY=$(terraform output -raw storage_account_primary_key 2>/dev/null | grep -v '::debug::' | head -n1 | tr -d '\r')
+
+         echo "DEBUG: AZURE_STORAGE_ACCOUNT=$AZURE_STORAGE_ACCOUNT"
+         echo "DEBUG: CONTAINER_NAME=$CONTAINER_NAME"
+         echo "DEBUG: AZURE_STORAGE_KEY=[redacted]"
+
+         if [[ -z "$AZURE_STORAGE_ACCOUNT" || -z "$CONTAINER_NAME" || -z "$AZURE_STORAGE_KEY" ]]; then
+         echo "::error::One or more outputs are empty!"
+         exit 1
+         fi
 
          echo "AZURE_STORAGE_ACCOUNT=$AZURE_STORAGE_ACCOUNT" >> $GITHUB_ENV
          echo "CONTAINER_NAME=$CONTAINER_NAME" >> $GITHUB_ENV
