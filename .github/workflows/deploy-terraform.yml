@@ -113,7 +113,7 @@ jobs:
           CONTAINER_NAME=$(terraform output -raw container_name)
           RESOURCE_GROUP_NAME=$(terraform output -raw resource_group_name)
     
-          KEY=$(az storage account keys list --account-name "$STORAGE_ACCOUNT_NAME" --resource-group "$RESOURCE_GROUP_NAME" --query '[0].value' -o tsv)
+          KEY=$(terraform output -raw storage_account_primary_key)
     
           # Set step outputs (accessible as steps.terraform-output.outputs.x)
           echo "storage_account_name=${STORAGE_ACCOUNT_NAME}" >> $GITHUB_OUTPUT
