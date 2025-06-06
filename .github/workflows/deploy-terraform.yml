@@ -110,15 +110,22 @@ jobs:
         working-directory: ./terraform
         shell: bash
         run: |
-         # Only capture the first line of output, suppress everything else
          STORAGE_ACCOUNT_NAME=$(terraform output -raw storage_account_name 2>/dev/null | head -n1 | tr -d '\r')
          CONTAINER_NAME=$(terraform output -raw container_name 2>/dev/null | head -n1 | tr -d '\r')
          KEY=$(terraform output -raw storage_account_primary_key 2>/dev/null | head -n1 | tr -d '\r')
 
-         # Basic validation to prevent accidental pollution
-         for var in "$STORAGE_ACCOUNT_NAME" "$CONTAINER_NAME" "$KEY"; do
-         if [[ "$var" == *"::debug::"* ]]; then
-          echo "::error::A Terraform output was polluted with debug text: $var"
+         echo "DEBUG: STORAGE_ACCOUNT_NAME=$STORAGE_ACCOUNT_NAME"
+         echo "DEBUG: CONTAINER_NAME=$CONTAINER_NAME"
+         echo "DEBUG: KEY=$KEY"
+
+         for varname in STORAGE_ACCOUNT_NAME CONTAINER_NAME KEY; do
+         value="${!varname}"
+         if [[ -z "$value" ]]; then
+         echo "::error::$varname is empty!"
+         exit 1
+         fi
+         if [[ "$value" == *"::debug::"* ]]; then
+         echo "::error::$varname was polluted with debug text: $value"
          exit 1
          fi
          done
