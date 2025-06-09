@@ -106,26 +106,20 @@ jobs:
         if: inputs.destroy == 'true'
 
       - name: Set Azure Storage secrets and variables in GitHub
-        if: inputs.destroy != 'true'
         working-directory: ./terraform
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.SOURCE_PAT }}
+         GH_TOKEN: ${{ secrets.SOURCE_PAT }}
         run: |
           STORAGE_ACCOUNT_NAME=$(terraform output -raw storage_account_name)
           CONTAINER_NAME=$(terraform output -raw container_name)
           RESOURCE_GROUP_NAME=$(terraform output -raw resource_group_name)
           AZURE_STORAGE_KEY=$(terraform output -raw storage_account_primary_key)
+
           echo "Storage: $STORAGE_ACCOUNT_NAME"
           echo "Container: $CONTAINER_NAME"
           echo "Resource Group: $RESOURCE_GROUP_NAME"
           echo "Key length: ${#AZURE_STORAGE_KEY}"
-
-          # Get the storage key
-          AZURE_STORAGE_KEY=$(az storage account keys list \
-            --resource-group "$RESOURCE_GROUP_NAME" \
-            --account-name "$STORAGE_ACCOUNT_NAME" \
-            --query '[0].value' -o tsv)
 
           # Set/update secrets in the repository
           echo -n "$AZURE_STORAGE_KEY" | gh secret set AZURE_STORAGE_KEY --repo "$GITHUB_REPOSITORY"
