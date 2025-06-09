@@ -44,6 +44,11 @@ jobs:
       actions: write
       repository-projects: write
 
+    outputs:
+      AZURE_STORAGE_ACCOUNT: ${{ steps.tf_outputs.outputs.AZURE_STORAGE_ACCOUNT }}
+      CONTAINER_NAME: ${{ steps.tf_outputs.outputs.CONTAINER_NAME }}
+      AZURE_STORAGE_KEY: ${{ steps.tf_outputs.outputs.AZURE_STORAGE_KEY }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -105,26 +110,23 @@ jobs:
         working-directory: ./terraform
         if: inputs.destroy == 'true'
 
-      - name: Set Azure Storage secrets and variables in GitHub
+      - name: Output Terraform values
+        id: tf_outputs
         working-directory: ./terraform
-        shell: bash
-        env:
-         GH_TOKEN: ${{ github.token }}
         run: |
-          STORAGE_ACCOUNT_NAME=$(terraform output -raw storage_account_name)
-          CONTAINER_NAME=$(terraform output -raw container_name)
-          RESOURCE_GROUP_NAME=$(terraform output -raw resource_group_name)
-          AZURE_STORAGE_KEY=$(terraform output -raw storage_account_primary_key)
+          echo "AZURE_STORAGE_ACCOUNT=$(terraform output -raw storage_account_name)" >> $GITHUB_OUTPUT
+          echo "CONTAINER_NAME=$(terraform output -raw container_name)" >> $GITHUB_OUTPUT
+          echo "AZURE_STORAGE_KEY=$(terraform output -raw storage_account_primary_key)" >> $GITHUB_OUTPUT
 
-          echo "Storage: $STORAGE_ACCOUNT_NAME"
-          echo "Container: $CONTAINER_NAME"
-          echo "Resource Group: $RESOURCE_GROUP_NAME"
-          echo "Key length: ${#AZURE_STORAGE_KEY}"
-
-          # Set/update secrets in the repository
-          echo -n "$AZURE_STORAGE_KEY" | gh secret set AZURE_STORAGE_KEY --repo "$GITHUB_REPOSITORY"
-
-          # Set/update variables in the repository
-          gh variable set AZURE_STORAGE_ACCOUNT --body "$STORAGE_ACCOUNT_NAME" --repo "$GITHUB_REPOSITORY"
-          gh variable set CONTAINER_NAME --body "$CONTAINER_NAME" --repo "$GITHUB_REPOSITORY"
-
+  # Call Archive workflow if not destroying
+  call-archive:
+    needs: terraform
+    if: ${{ needs.terraform.outputs.AZURE_STORAGE_ACCOUNT && inputs.destroy != 'true' }}
+    uses: ./.github/workflows/archive.yml
+    with:
+      AZURE_STORAGE_ACCOUNT: ${{ needs.terraform.outputs.AZURE_STORAGE_ACCOUNT }}
+      CONTAINER_NAME: ${{ needs.terraform.outputs.CONTAINER_NAME }}
+    secrets:
+      ARCHIVE_APP_ID: ${{ secrets.ARCHIVE_APP_ID }}
+      ARCHIVE_APP_PRIVATE_KEY: ${{ secrets.ARCHIVE_APP_PRIVATE_KEY }}
+      AZURE_STORAGE_KEY: ${{ needs.terraform.outputs.AZURE_STORAGE_KEY }}
