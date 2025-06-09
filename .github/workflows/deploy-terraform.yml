@@ -106,25 +106,27 @@ jobs:
         if: inputs.destroy == 'true'
 
       - name: Set Azure Storage secrets and variables in GitHub
+        if: inputs.destroy != 'true'
         working-directory: ./terraform
         shell: bash
         env:
-            GH_TOKEN: ${{ secrets.SOURCE_PAT }}
+          GH_TOKEN: ${{ secrets.SOURCE_PAT }}
         run: |
-         RESOURCE_GROUP_NAME="rg-github-archives"
-         STORAGE_ACCOUNT_NAME="ghrepoarchive123"
-         CONTAINER_NAME="security-backups"
-         AZURE_STORAGE_KEY=$(az storage account keys list \
-         --resource-group "$RESOURCE_GROUP_NAME" \
-         --account-name "$STORAGE_ACCOUNT_NAME" \
-         --query '[0].value' -o tsv)
+          # Get outputs from Terraform state
+          STORAGE_ACCOUNT_NAME=$(terraform output -raw storage_account_name)
+          CONTAINER_NAME=$(terraform output -raw container_name)
+          RESOURCE_GROUP_NAME="rg-github-archives" # change this if you also want it as an output
 
-         # Set/update secrets in the repository
-         echo -n "$STORAGE_ACCOUNT_NAME" | gh secret set AZURE_STORAGE_ACCOUNT --repo "$GITHUB_REPOSITORY"
-         echo -n "$CONTAINER_NAME" | gh secret set CONTAINER_NAME --repo "$GITHUB_REPOSITORY"
-         echo -n "$AZURE_STORAGE_KEY" | gh secret set AZURE_STORAGE_KEY --repo "$GITHUB_REPOSITORY"
+          # Get the storage key
+          AZURE_STORAGE_KEY=$(az storage account keys list \
+            --resource-group "$RESOURCE_GROUP_NAME" \
+            --account-name "$STORAGE_ACCOUNT_NAME" \
+            --query '[0].value' -o tsv)
 
-         # Optionally set as repo variables as well (Actions Variables, not secrets)
-         gh variable set AZURE_STORAGE_ACCOUNT --body "$STORAGE_ACCOUNT_NAME" --repo "$GITHUB_REPOSITORY"
-         gh variable set CONTAINER_NAME --body "$CONTAINER_NAME" --repo "$GITHUB_REPOSITORY"
+          # Set/update secrets in the repository
+          echo -n "$AZURE_STORAGE_KEY" | gh secret set AZURE_STORAGE_KEY --repo "$GITHUB_REPOSITORY"
+
+          # Set/update variables in the repository
+          gh variable set AZURE_STORAGE_ACCOUNT --body "$STORAGE_ACCOUNT_NAME" --repo "$GITHUB_REPOSITORY"
+          gh variable set CONTAINER_NAME --body "$CONTAINER_NAME" --repo "$GITHUB_REPOSITORY"
 
