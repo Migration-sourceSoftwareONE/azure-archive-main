@@ -7,10 +7,10 @@ on:
   workflow_call:
     inputs:
       AZURE_STORAGE_ACCOUNT:
-        required: false
+        required: true
         type: string
       CONTAINER_NAME:
-        required: false
+        required: true
         type: string
     secrets:
       ARCHIVE_APP_ID:
@@ -37,16 +37,16 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           
-          $storageAccount = "${{ vars.AZURE_STORAGE_ACCOUNT }}"
-          $containerName = "${{ vars.CONTAINER_NAME }}"
+          $storageAccount = "${{ inputs.AZURE_STORAGE_ACCOUNT }}"
+          $containerName = "${{ inputs.CONTAINER_NAME }}"
           
           if ([string]::IsNullOrEmpty($storageAccount)) {
-            Write-Error "Storage account name is not set. Please check GitHub repository variables."
+            Write-Error "Storage account name is not set. Please check workflow inputs."
             exit 1
           }
           
           if ([string]::IsNullOrEmpty($containerName)) {
-            Write-Error "Container name is not set. Please check GitHub repository variables."
+            Write-Error "Container name is not set. Please check workflow inputs."
             exit 1
           }
           
@@ -73,9 +73,9 @@ jobs:
           pwsh ./archive-private-repos.ps1 `
             -GitHubOrg ${{ vars.GIT_HUB_ORG }} `
             -GitHubToken ${{ steps.create_token.outputs.token }} `
-            -StorageAccountName ${{ vars.AZURE_STORAGE_ACCOUNT }} `
+            -StorageAccountName ${{ inputs.AZURE_STORAGE_ACCOUNT }} `
             -StorageAccountKey ${{ secrets.AZURE_STORAGE_KEY }} `
-            -ContainerName ${{ vars.CONTAINER_NAME }} `
+            -ContainerName ${{ inputs.CONTAINER_NAME }} `
             -RetentionDays 60
         env:
           GITHUB_TOKEN: ${{ steps.create_token.outputs.token }}
